@@ -1,6 +1,10 @@
 # Sprite-Previewer
 序列帧预览工具 (Sprite Sheet Previewer)
 
+网址：
+https://angiepeng2001.github.io/Sprite-Previewer/
+复制链接在浏览器打开即可直接使用
+
 一个轻量级、功能强大的在线序列帧（Sprite Sheet）动画预览与调试工具。无需安装，上传图片即可实时查看动画效果。
 
 🌟 项目简介
