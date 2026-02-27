@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>序列帧预览工具 - Sprite Sheet Previewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .checkerboard {
+            background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+                              linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+                              linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        
+        input[type="range"] {
+            accent-color: #3b82f6;
+        }
+
+        .canvas-container {
+            max-height: 500px;
+            overflow: auto;
+        }
+
+        #originalCanvas, #previewCanvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans">
+
+    <div class="max-w-6xl mx-auto p-4 md:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-900">序列帧效果预览工具</h1>
+            <p class="text-gray-600 mt-2">上传你的精灵图，轻松调试动画效果</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- 控制面板 -->
+            <div class="lg:col-span-1 space-y-6">
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        资源上传
+                    </h2>
+                    <label class="block">
+                        <div class="flex items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-gray-300 border-dashed rounded-xl appearance-none cursor-pointer hover:border-blue-400 focus:outline-none">
+                            <span class="flex items-center space-x-2">
+                                <span class="font-medium text-gray-600">点击上传图片</span>
+                            </span>
+                            <input type="file" id="imageInput" class="hidden" accept="image/*">
+                        </div>
+                    </label>
+                    <div id="imageInfo" class="mt-3 text-sm text-gray-500 hidden">
+                        尺寸: <span id="imgSize">0 x 0</span> px
+                    </div>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        切分设置
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        <div class="flex gap-2 p-1 bg-gray-100 rounded-lg">
+                            <button id="modeGrid" class="flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition bg-white shadow-sm text-blue-600">网格切分</button>
+                            <button id="modeSize" class="flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition text-gray-600 hover:bg-gray-200">固定尺寸</button>
+                        </div>
+
+                        <!-- 网格模式设置 -->
+                        <div id="gridInputs" class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase font-bold mb-1">列数 (Cols)</label>
+                                <input type="number" id="inputCols" value="4" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase font-bold mb-1">行数 (Rows)</label>
+                                <input type="number" id="inputRows" value="1" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                        </div>
+
+                        <!-- 尺寸模式设置 -->
+                        <div id="sizeInputs" class="grid grid-cols-2 gap-4 hidden">
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase font-bold mb-1">宽度 (W)</label>
+                                <input type="number" id="inputWidth" value="64" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 uppercase font-bold mb-1">高度 (H)</label>
+                                <input type="number" id="inputHeight" value="64" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-gray-500 uppercase font-bold mb-1">总帧数 (可手动限制)</label>
+                            <input type="number" id="inputTotalFrames" value="4" min="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        播放控制
+                    </h2>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <label class="text-sm font-medium">帧率 (FPS): <span id="fpsValue" class="text-blue-600">12</span></label>
+                            </div>
+                            <input type="range" id="inputFPS" min="1" max="60" value="12" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <div class="flex items-center justify-between gap-2">
+                            <button id="btnPrev" class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z"></path></svg>
+                            </button>
+                            <button id="btnPlayPause" class="flex-1 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-md">
+                                暂停
+                            </button>
+                            <button id="btnNext" class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798L4.555 5.168z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 预览区域 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 动画预览 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-4">预览窗口</h2>
+                    <div class="checkerboard rounded-xl border border-gray-200 flex items-center justify-center overflow-hidden min-h-[300px]">
+                        <canvas id="previewCanvas"></canvas>
+                    </div>
+                    <div class="mt-4 flex justify-between items-center text-sm text-gray-500">
+                        <span>当前帧: <span id="currentFrameDisplay" class="font-mono text-blue-600">0</span> / <span id="totalFramesDisplay" class="font-mono">0</span></span>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="showGrid" checked class="mr-2 rounded">
+                            <label for="showGrid">显示切分网格</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 原图与网格 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-lg font-semibold mb-4">原图检查区</h2>
+                    <div class="canvas-container border border-gray-200 rounded-xl bg-gray-50">
+                        <canvas id="originalCanvas"></canvas>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-400">滚动或拖动查看完整大图，绿色框表示当前帧</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="toast" class="fixed bottom-8 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-gray-900 text-white rounded-full shadow-2xl transition-opacity opacity-0 pointer-events-none">
+        提示信息
+    </div>
+
+    <script>
+        // --- 核心变量 ---
+        let img = new Image();
+        let isLoaded = false;
+        let isPlaying = true;
+        let currentFrame = 0;
+        let lastTimestamp = 0;
+        let sliceMode = 'grid'; // 'grid' or 'size'
+
+        // 切分参数
+        let rows = 1, cols = 4;
+        let frameW = 0, frameH = 0;
+        let totalFrames = 4;
+        let fps = 12;
+
+        // DOM 元素
+        const imageInput = document.getElementById('imageInput');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const oCtx = originalCanvas.getContext('2d');
+        const pCtx = previewCanvas.getContext('2d');
+
+        const inputRows = document.getElementById('inputRows');
+        const inputCols = document.getElementById('inputCols');
+        const inputWidth = document.getElementById('inputWidth');
+        const inputHeight = document.getElementById('inputHeight');
+        const inputTotalFrames = document.getElementById('inputTotalFrames');
+        const inputFPS = document.getElementById('inputFPS');
+        const fpsValue = document.getElementById('fpsValue');
+        
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const btnPrev = document.getElementById('btnPrev');
+        const btnNext = document.getElementById('btnNext');
+        const showGridCheck = document.getElementById('showGrid');
+
+        // --- 初始化 ---
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => toast.classList.add('opacity-0'), 2000);
+        }
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                img.onload = () => {
+                    isLoaded = true;
+                    document.getElementById('imageInfo').classList.remove('hidden');
+                    document.getElementById('imgSize').innerText = `${img.width} x ${img.height}`;
+                    updateParameters();
+                    currentFrame = 0;
+                    render();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // 模式切换
+        document.getElementById('modeGrid').addEventListener('click', () => {
+            sliceMode = 'grid';
+            document.getElementById('gridInputs').classList.remove('hidden');
+            document.getElementById('sizeInputs').classList.add('hidden');
+            document.getElementById('modeGrid').classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('modeGrid').classList.remove('text-gray-600');
+            document.getElementById('modeSize').classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('modeSize').classList.add('text-gray-600');
+            updateParameters();
+        });
+
+        document.getElementById('modeSize').addEventListener('click', () => {
+            sliceMode = 'size';
+            document.getElementById('gridInputs').classList.add('hidden');
+            document.getElementById('sizeInputs').classList.remove('hidden');
+            document.getElementById('modeSize').classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('modeSize').classList.remove('text-gray-600');
+            document.getElementById('modeGrid').classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('modeGrid').classList.add('text-gray-600');
+            updateParameters();
+        });
+
+        // 参数更新
+        function updateParameters() {
+            if (!isLoaded) return;
+
+            if (sliceMode === 'grid') {
+                rows = parseInt(inputRows.value) || 1;
+                cols = parseInt(inputCols.value) || 1;
+                frameW = img.width / cols;
+                frameH = img.height / rows;
+            } else {
+                frameW = parseInt(inputWidth.value) || 32;
+                frameH = parseInt(inputHeight.value) || 32;
+                cols = Math.floor(img.width / frameW);
+                rows = Math.floor(img.height / frameH);
+            }
+
+            // 如果总帧数没变，自动计算一个默认值
+            const calculatedMax = rows * cols;
+            if (inputTotalFrames.value == totalFrames || inputTotalFrames.value > calculatedMax) {
+                totalFrames = calculatedMax;
+                inputTotalFrames.value = totalFrames;
+            } else {
+                totalFrames = parseInt(inputTotalFrames.value) || 1;
+            }
+
+            fps = parseInt(inputFPS.value);
+            fpsValue.innerText = fps;
+            
+            document.getElementById('totalFramesDisplay').innerText = totalFrames;
+            
+            // 调整预览画布大小
+            previewCanvas.width = frameW;
+            previewCanvas.height = frameH;
+            
+            // 调整原图画布大小
+            originalCanvas.width = img.width;
+            originalCanvas.height = img.height;
+        }
+
+        [inputRows, inputCols, inputWidth, inputHeight, inputTotalFrames, inputFPS].forEach(el => {
+            el.addEventListener('input', () => {
+                updateParameters();
+                if (currentFrame >= totalFrames) currentFrame = 0;
+            });
+        });
+
+        // 控制逻辑
+        btnPlayPause.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            btnPlayPause.innerText = isPlaying ? "暂停" : "播放";
+            btnPlayPause.classList.toggle('bg-blue-600');
+            btnPlayPause.classList.toggle('bg-green-600');
+        });
+
+        btnPrev.addEventListener('click', () => {
+            isPlaying = false;
+            btnPlayPause.innerText = "播放";
+            btnPlayPause.classList.replace('bg-blue-600', 'bg-green-600');
+            currentFrame = (currentFrame - 1 + totalFrames) % totalFrames;
+        });
+
+        btnNext.addEventListener('click', () => {
+            isPlaying = false;
+            btnPlayPause.innerText = "播放";
+            btnPlayPause.classList.replace('bg-blue-600', 'bg-green-600');
+            currentFrame = (currentFrame + 1) % totalFrames;
+        });
+
+        // --- 渲染循环 ---
+
+        function render(timestamp) {
+            if (!isLoaded) {
+                requestAnimationFrame(render);
+                return;
+            }
+
+            // 动画计时
+            if (isPlaying && timestamp) {
+                const interval = 1000 / fps;
+                const delta = timestamp - lastTimestamp;
+                if (delta >= interval) {
+                    currentFrame = (currentFrame + 1) % totalFrames;
+                    lastTimestamp = timestamp - (delta % interval);
+                }
+            }
+
+            document.getElementById('currentFrameDisplay').innerText = currentFrame;
+
+            // 1. 清除并绘制预览
+            pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            
+            const sx = (currentFrame % cols) * frameW;
+            const sy = Math.floor(currentFrame / cols) * frameH;
+            
+            pCtx.drawImage(img, sx, sy, frameW, frameH, 0, 0, frameW, frameH);
+
+            // 2. 绘制原图辅助
+            oCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+            oCtx.drawImage(img, 0, 0);
+
+            if (showGridCheck.checked) {
+                oCtx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+                oCtx.lineWidth = 1;
+                // 画纵线
+                for (let i = 0; i <= cols; i++) {
+                    oCtx.beginPath();
+                    oCtx.moveTo(i * frameW, 0);
+                    oCtx.lineTo(i * frameW, img.height);
+                    oCtx.stroke();
+                }
+                // 画横线
+                for (let j = 0; j <= rows; j++) {
+                    oCtx.beginPath();
+                    oCtx.moveTo(0, j * frameH);
+                    oCtx.lineTo(img.width, j * frameH);
+                    oCtx.stroke();
+                }
+
+                // 突出显示当前帧
+                oCtx.strokeStyle = '#3b82f6';
+                oCtx.lineWidth = 3;
+                oCtx.strokeRect(sx, sy, frameW, frameH);
+                oCtx.fillStyle = 'rgba(59, 130, 246, 0.1)';
+                oCtx.fillRect(sx, sy, frameW, frameH);
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        // 启动循环
+        requestAnimationFrame(render);
+
+        // 初始提示
+        window.onload = () => {
+            // 设置一个默认占位提示
+            pCtx.fillStyle = "#9ca3af";
+            pCtx.font = "14px sans-serif";
+            pCtx.textAlign = "center";
+            pCtx.fillText("请上传序列帧图片", previewCanvas.width/2 || 150, previewCanvas.height/2 || 75);
+        };
+    </script>
+</body>
+</html>
